@@ -43,76 +43,48 @@ self.addEventListener('install', function(e) {
             console.log('Service Worker: Cache abierto');
             return cache.addAll(cacheFiles);
         })
-    );
+    )
+})
 
-    // Notificación al momento de la instalación
-    self.registration.showNotification("¡Bienvenido a los Helados Garza!", {
-        body: "Gracias por visitarnos, disfruta de nuestros sabores deliciosos.",
-        icon: "img/icono1.png",
-        badge: "img/icono1.png",
-    });
-});
-
-// Activación del Service Worker
-self.addEventListener('activate', (event) => {
-    const cacheWhitelist = ['v3Helados'];
+self.addEventListener('activate', function(e) {
     console.log('Service Worker: Activado');
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
+    e.waitUntil()(
+        caches.keys().then(function(cacheNames) {
+            return Promise.all(cacheNames.map(function(thisCacheName) {
+                   if(thisCacheName !== CACHE_NAME) {
+                    console.log('Service Worker: Cache viejo eliminado', thisCacheName);
+                    return caches.delete(thisCacheName);
+                   }
+            }))
         })
-    );
+    )
+})
 
-    // Notificación cuando el Service Worker está activado
-    self.registration.showNotification("¡Estás listo para estar disfrutando de nuestros helados deliciosos!", {
-        body: "¡Recibirás nuestras últimas actualizaciones aquí!",
-        icon: "img/icono1.png",
-        badge: "img/icono1.png",
-    });
-});
-
-//fetch
-self.addEventListener('fetch', (event) => {
-    console.log('Service Worker: Fetch solicitado para', event.request.url);
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                if (response) {
+self.addEventListener('fetch', function(e) {
+    console.log('Service Worker: Fetching', e.request.url);
+    
+    e.respondWith(
+        caches.match(e.request).then(function(response) {
+            if(response) {
+                console.log('Cache encontrada', e.request.url);
+                return response;
+            }
+            var requestClone = e.request.clone();
+            fetch(requestClone).then(function(response) {
+                if(!response){
+                    console.log('No se encontro respuesta');
                     return response;
                 }
-                return fetch(event.request);
+                var responseClone = response.clone();
+                
+                caches.open(CACHE_NAME).then(function(cache) {
+                    cache.put(e.request, responseClone);
+                    return response;
+                });
             })
-            .catch((error) => console.error('Error en la solicitud fetch', error))
-    );
-});
-
-
-// Evento push para recibir notificaciones
-self.addEventListener('push', function(event) {
-    console.log('Push recibido', event);
-
-    var options = {
-        body: event.data ? event.data.text() : '¡Tienes una nueva notificación!',
-        icon: 'img/icono1.png',
-        badge: 'img/icono1.png'
-    };
-
-    event.waitUntil(
-        self.registration.showNotification('¡Notificación Push!', options)
-    );
-});
-
-// Acción al hacer clic en una notificación
-self.addEventListener('notificationclick', function(event) {
-    console.log('Notificación clickeada', event.notification);
-    event.notification.close();
-    event.waitUntil(
-        clients.openWindow('/index.html') 
-    );
-});
+            .catch(function(err){
+                console.log('Error al hacer fetch', err);
+            })
+        })
+    )
+})
